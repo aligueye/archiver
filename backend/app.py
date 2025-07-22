@@ -21,8 +21,19 @@ def archive():
     return {"status": "ok", "archive_path": archive_path}
 
 
+@app.route("/archives", methods=["GET"])
+def list_archives():
+    archives = []
+    for domain in os.listdir("archives"):
+        domain_path = os.path.join("archives", domain)
+        if os.path.isdir(domain_path):
+            versions = sorted(os.listdir(domain_path))
+            archives.append({"domain": domain, "versions": versions})
+    return jsonify(archives)
+
+
 @app.route("/archives/<domain>", methods=["GET"])
-def list_archives(domain):
+def list_archives_by_domain(domain):
     path = os.path.join("archives", domain)
     if not os.path.exists(path):
         return jsonify([])

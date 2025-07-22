@@ -70,6 +70,24 @@ def rewrite_asset_links(soup, page_url, base_path, timestamp):
                     f"assets/{subfolder}/{filename}"
 
 
+def rewrite_page_links(soup, page_url, timestamp):
+    parsed = urlparse(page_url)
+    domain = parsed.netloc.replace("www.", "")
+    archive_url_prefix = f"/archive/{domain}/{timestamp}/"
+
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+
+        if href.startswith(("#", "mailto:", "javascript:")):
+            continue
+
+        full_url = urljoin(page_url, href)
+
+        if is_same_domain(page_url, full_url):
+            target_path = urlparse(full_url).path.lstrip("/")
+            a["href"] = archive_url_prefix + target_path
+
+
 def crawl(url, base_path, timestamp, visited=None, depth=0, max_depth=2):
     if visited is None:
         visited = set()
@@ -88,10 +106,6 @@ def crawl(url, base_path, timestamp, visited=None, depth=0, max_depth=2):
 
     html = res.text
     soup = BeautifulSoup(html, "html.parser")
-    rewrite_asset_links(soup, url, base_path, timestamp)
-
-    final_html = str(soup)
-    save_html(final_html, base_path, url)
 
     links = [a.get("href") for a in soup.find_all("a", href=True)]
 
@@ -103,3 +117,9 @@ def crawl(url, base_path, timestamp, visited=None, depth=0, max_depth=2):
         if is_same_domain(url, full_link) and normalized_link not in visited:
             crawl(full_link, base_path, timestamp,
                   visited, depth + 1, max_depth)
+
+    rewrite_asset_links(soup, url, base_path, timestamp)
+    rewrite_page_links(soup, url, timestamp)
+
+    final_html = str(soup)
+    save_html(final_html, base_path, url)
