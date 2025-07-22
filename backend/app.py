@@ -1,15 +1,19 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request
 from flask_cors import CORS
+from utils import get_archive_path
+from crawler import crawl
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})  # allow all origins, all routes
+CORS(app)
 
-@app.route('/archive', methods=['POST'])
+@app.route("/archive", methods=["POST"])
 def archive():
-    data = request.json
-    url = data.get('url')
-    print(f"Received URL to archive: {url}")
-    return jsonify({'message': 'URL received', 'url': url})
+    data = request.get_json()
+    url = data.get("url")
+    try:
+        archive_path = get_archive_path(url)
+        crawl(url, archive_path, max_depth=2)
+    except Exception as e:
+        return {"status": "error", "message": str(e)}, 400
 
-if __name__ == '__main__':
-    app.run(debug=True)
+    return {"status": "ok", "archive_path": archive_path}

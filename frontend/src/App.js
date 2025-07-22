@@ -2,17 +2,26 @@ import { useState } from "react";
 
 function App() {
   const [url, setUrl] = useState("");
+  const [error, setError] = useState(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError(null);
     try {
-      await fetch("http://localhost:5000/archive", {
+      const res = await fetch("http://localhost:5000/archive", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url }),
       });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Failed to archive the URL.");
+      }
     } catch (error) {
       console.error("Error submitting URL:", error);
+      setError(
+        error?.message || "Failed to archive the URL. Please try again."
+      );
     }
   };
 
@@ -29,6 +38,7 @@ function App() {
         />
         <button type="submit">Archive</button>
       </form>
+      {error && <p style={{ color: "red" }}>{error}</p>}
     </div>
   );
 }
