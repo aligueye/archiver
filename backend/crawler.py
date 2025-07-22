@@ -3,25 +3,81 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin
 
-def is_same_domain(base_url, target_url):
-    return urlparse(base_url).netloc == urlparse(target_url).netloc
+from utils import normalize_url, is_same_domain
 
-def sanitize_path(path):
-    clean = path.strip("/").replace("/", "_")
-    return clean if clean else "index"
 
-def save_html(content, base_path, rel_path):
-    full_path = os.path.join(base_path, rel_path)
-    os.makedirs(full_path, exist_ok=True)
-    with open(os.path.join(full_path, "index.html"), "w", encoding="utf-8") as f:
-        f.write(content)
+def save_html(content, base_path, url):
+    rel_path = urlparse(url).path.strip("/")
+    if rel_path in ("", "index.html"):
+        filepath = os.path.join(base_path, "index.html")
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(content)
+    elif rel_path.endswith(".html"):
+        full_path = os.path.join(base_path, rel_path)
+        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+        with open(full_path, "w", encoding="utf-8") as f:
+            f.write(content)
+    else:
+        full_path = os.path.join(base_path, rel_path)
+        os.makedirs(full_path, exist_ok=True)
+        filepath = os.path.join(full_path, "index.html")
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(content)
 
-def crawl(url, base_path, visited=None, depth=0, max_depth=2):
+
+def download_asset(asset_url, asset_path):
+    try:
+        res = requests.get(asset_url, timeout=10)
+        res.raise_for_status()
+    except Exception as e:
+        print(f"Failed to download asset {asset_url}: {e}")
+        return None
+
+    os.makedirs(os.path.dirname(asset_path), exist_ok=True)
+    with open(asset_path, "wb") as f:
+        f.write(res.content)
+    return asset_path
+
+
+def rewrite_asset_links(soup, page_url, base_path, timestamp):
+    tags = [
+        ("img", "src", "img"),
+        ("script", "src", "js"),
+        ("link", "href", "css"),
+    ]
+
+    parsed_url = urlparse(page_url)
+    domain = parsed_url.netloc.replace("www.", "")
+    archive_url_prefix = f"/archive/{domain}/{timestamp}/"
+
+    for tag, attr, subfolder in tags:
+        for el in soup.find_all(tag):
+            url = el.get(attr)
+            if not url or url.startswith("data:") or url.startswith("mailto:"):
+                continue
+
+            full_url = urljoin(page_url, url)
+            parsed = urlparse(full_url)
+            filename = os.path.basename(parsed.path)
+            ext = os.path.splitext(filename)[1]
+            filename = filename if ext else filename + ".bin"
+
+            local_rel_path = os.path.join("assets", subfolder, filename)
+            local_abs_path = os.path.join(base_path, local_rel_path)
+
+            if download_asset(full_url, local_abs_path):
+                el[attr] = archive_url_prefix + \
+                    f"assets/{subfolder}/{filename}"
+
+
+def crawl(url, base_path, timestamp, visited=None, depth=0, max_depth=2):
     if visited is None:
         visited = set()
-    if depth > max_depth or url in visited:
+    normalized_url = normalize_url(url)
+    if depth > max_depth or normalized_url in visited:
         return
-    visited.add(url)
+    visited.add(normalized_url)
+    print(f"[depth={depth}] Archiving: {url}")
 
     try:
         res = requests.get(url, timeout=10)
@@ -31,14 +87,19 @@ def crawl(url, base_path, visited=None, depth=0, max_depth=2):
         return
 
     html = res.text
-    parsed_url = urlparse(url)
-    rel_path = sanitize_path(parsed_url.path)
-    save_html(html, base_path, rel_path)
-
     soup = BeautifulSoup(html, "html.parser")
+    rewrite_asset_links(soup, url, base_path, timestamp)
+
+    final_html = str(soup)
+    save_html(final_html, base_path, url)
+
     links = [a.get("href") for a in soup.find_all("a", href=True)]
 
     for link in links:
-        full_url = urljoin(url, link)
-        if is_same_domain(url, full_url) and full_url not in visited:
-            crawl(full_url, base_path, visited, depth + 1, max_depth)
+        if not link or link.startswith("#"):
+            continue
+        full_link = urljoin(url, link)
+        normalized_link = normalize_url(full_link)
+        if is_same_domain(url, full_link) and normalized_link not in visited:
+            crawl(full_link, base_path, timestamp,
+                  visited, depth + 1, max_depth)
