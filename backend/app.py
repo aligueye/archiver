@@ -1,11 +1,18 @@
+import sys
 import os
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from utils import get_archive_path
 from crawler import crawl
+import asyncio
+
 
 app = Flask(__name__)
 CORS(app)
+
+# Set the default event loop policy for Windows(noisy warnings/errors for asyncio on Windows for Python < 3.8)
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
 @app.route("/archive", methods=["POST"])
@@ -14,7 +21,13 @@ def archive():
     url = data.get("url")
     try:
         archive_path, timestamp = get_archive_path(url)
-        crawl(url, archive_path, timestamp, max_depth=2)
+
+        import aiohttp
+
+        async def run_crawl():
+            async with aiohttp.ClientSession() as session:
+                await crawl(url, archive_path, timestamp, session=session)
+        asyncio.run(run_crawl())
     except Exception as e:
         return {"status": "error", "message": str(e)}, 400
 
@@ -54,6 +67,4 @@ def serve_index(domain, timestamp):
     print(f"Serving index from {archive_dir}")
     if not os.path.exists(archive_dir):
         return jsonify({"error": "Archive not found"}), 404
-    else:
-        print(f"Found index.html in {archive_dir}")
     return send_from_directory(archive_dir, "index.html")
