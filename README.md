@@ -1,6 +1,6 @@
 # Website Archiver
 
-A full-stack app that lets users archive a website snapshot and browse it later including subpages, images, scripts, and styles. All of this is stored offline and navigable like the live site.
+A full-stack app that lets users archive a website snapshot and browse it later including subpages, images, scripts, and styles. Allcontent is stored offline and navigable like the live site.
 
 ## Demo
 
@@ -37,7 +37,7 @@ npm install
 npm run dev # or npm start
 ```
 
-Visit `http://localhost:5173` to use the app. Make sure the backend is running at `http://localhost:5000`.
+Visit `http://localhost:3000` to use the app. Make sure the backend is running at `http://localhost:5000`.
 
 ## Directory Structure
 
@@ -58,6 +58,8 @@ archives/
 - Export full archive as downloadable .zip
 
 ## Production Considerations
+
+To make this project production-ready, consider the following improvements:
 
 - **Scalable Storage:** Migrate from local filesystem to a cloud solution like AWS S3 with metadata managed in a relational database
 - **Dynamic Content Support:** Integrate headless browser tools like Playwright or Puppeteer to capture pages that require JavaScript rendering
