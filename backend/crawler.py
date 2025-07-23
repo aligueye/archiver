@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin
 
 DEFAULT_TIMEOUT = 20
+MAX_DEPTH = 4
 
 
 def is_same_domain(base_url, target_url):
@@ -115,7 +116,7 @@ def rewrite_page_links(soup, page_url, timestamp):
         a["href"] = archive_url_prefix + rel_path
 
 
-async def crawl(url, base_path, timestamp, visited=None, depth=0, max_depth=2, session=None):
+async def crawl(url, base_path, timestamp, visited=None, depth=0, max_depth=MAX_DEPTH, session=None):
     if visited is None:
         visited = set()
     normalized_url = normalize_url(url)

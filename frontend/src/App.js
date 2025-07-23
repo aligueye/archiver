@@ -1,14 +1,21 @@
 import { useState, useEffect } from "react";
+import ArchiveList from "./ArchiveList";
+import SnapshotViewer from "./SnapshotViewer";
 
 function App() {
   const [url, setUrl] = useState("");
   const [archives, setArchives] = useState([]);
   const [selected, setSelected] = useState(null);
   const [error, setError] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingArchives, setIsLoadingArchives] = useState(true);
+  const [successMessage, setSuccessMessage] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
+    setSuccessMessage("");
+    setIsSubmitting(true);
     try {
       const res = await fetch("http://localhost:5000/archive", {
         method: "POST",
@@ -19,15 +26,21 @@ function App() {
         const errorData = await res.json();
         throw new Error(errorData.message || "Failed to archive the URL.");
       }
+      setSuccessMessage("Successfully archived!");
+      setUrl("");
+      await fetchArchives(); // Refresh list after archiving
     } catch (error) {
       console.error("Error submitting URL:", error);
       setError(
         error?.message || "Failed to archive the URL. Please try again."
       );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const fetchArchives = async () => {
+    setIsLoadingArchives(true);
     try {
       const res = await fetch("http://localhost:5000/archives");
       if (!res.ok) {
@@ -38,6 +51,8 @@ function App() {
     } catch (error) {
       console.error("Error fetching archives:", error);
       setError("Failed to load archives. Please try again later.");
+    } finally {
+      setIsLoadingArchives(false);
     }
   };
 
@@ -55,50 +70,23 @@ function App() {
           onChange={(e) => setUrl(e.target.value)}
           placeholder="Enter URL"
           style={{ width: "300px", marginRight: "1rem" }}
+          disabled={isSubmitting}
         />
-        <button type="submit">Archive</button>
+        <button type="submit" disabled={isSubmitting || !url.trim()}>
+          {isSubmitting ? "Archiving..." : "Archive"}
+        </button>
       </form>
       {error && <p style={{ color: "red" }}>{error}</p>}
+      {successMessage && <p style={{ color: "green" }}>{successMessage}</p>}
 
       <h2>Archived URLs</h2>
-      <ul>
-        {archives.map((archive) => (
-          <li key={archive.domain}>
-            <strong>{archive.domain}</strong>
-            <ul>
-              {archive.versions.map((timestamp) => (
-                <li key={timestamp}>
-                  <button
-                    onClick={() =>
-                      setSelected({
-                        domain: archive.domain,
-                        timestamp,
-                      })
-                    }
-                  >
-                    {timestamp}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </li>
-        ))}
-      </ul>
-      {archives.length === 0 && <p>No archives available.</p>}
-      {selected && (
-        <>
-          <h2>Snapshot Preview</h2>
-          <p>
-            Viewing snapshot from <strong>{selected.domain}</strong> at{" "}
-            <strong>{selected.timestamp}</strong>
-          </p>
-          <iframe
-            title="snapshot"
-            src={`http://localhost:5000/archive/${selected.domain}/${selected.timestamp}/`}
-            style={{ width: "100%", height: "600px", border: "1px solid #ccc" }}
-          />
-        </>
+      {isLoadingArchives ? (
+        <p>Loading archives...</p>
+      ) : (
+        <ArchiveList archives={archives} onSelect={setSelected} />
       )}
+
+      <SnapshotViewer selected={selected} />
     </div>
   );
 }

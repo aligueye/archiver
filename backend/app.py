@@ -40,7 +40,7 @@ def list_archives():
     for domain in os.listdir("archives"):
         domain_path = os.path.join("archives", domain)
         if os.path.isdir(domain_path):
-            versions = sorted(os.listdir(domain_path))
+            versions = sorted(os.listdir(domain_path), reverse=True)
             archives.append({"domain": domain, "versions": versions})
     return jsonify(archives)
 
